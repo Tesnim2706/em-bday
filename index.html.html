@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Birthday Wordle</title>
+  <style>
+    body {
+      background: linear-gradient(to bottom right, #d8e3d0, #f6f5f0);
+      color: #2e3b2f;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #4e5d52;
+      margin-top: 20px;
+      animation: fadeIn 2s ease;
+    }
+
+    #instructions {
+      font-size: 1.2em;
+      margin: 10px auto 20px;
+      color: #5f6b60;
+      animation: fadeIn 2s ease;
+    }
+
+    #board {
+      display: grid;
+      grid-template-rows: repeat(6, 1fr);
+      gap: 10px;
+      margin: 20px auto;
+      width: fit-content;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+
+    .tile {
+      width: 60px;
+      height: 60px;
+      border: 2px solid #a9b8a6;
+      font-size: 2em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f6f5f0;
+      color: #2e3b2f;
+      transition: all 0.3s;
+      border-radius: 6px;
+    }
+
+    .correct {
+      background: #a3c4a0;
+      color: white;
+    }
+
+    .present {
+      background: #d0cba5;
+      color: white;
+    }
+
+    .absent {
+      background: #b7b7b7;
+      color: white;
+    }
+
+    #keyboard {
+      margin: 20px auto;
+      max-width: 600px;
+    }
+
+    .key {
+      padding: 10px 12px;
+      margin: 5px;
+      background: #8aa59b;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .key:hover {
+      background: #9cb8ae;
+    }
+
+    #final-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, #c6d3c2, #f3d7ec);
+      color: #2e3b2f;
+      padding: 60px 20px;
+      text-align: center;
+      animation: fadeIn 2s ease-in-out forwards;
+    }
+
+    #final-screen h1 {
+      font-size: 3em;
+      margin-bottom: 20px;
+      animation: fadeIn 1s ease-in-out 1s forwards;
+      opacity: 0;
+    }
+
+    #final-screen p {
+      font-size: 1.5em;
+      max-width: 700px;
+      margin: 0 auto;
+      line-height: 1.6;
+      animation: fadeIn 1s ease-in-out 2s forwards;
+      opacity: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <h1>🌿 This is a Wordle game for your birthday! 🎉</h1>
+  <div id="instructions">Guess the 5-letter word. You only get 6 tries. Good luck!</div>
+
+  <div id="board"></div>
+  <div id="keyboard"></div>
+
+  <div id="final-screen">
+    <h1>“LOVED”</h1>
+    <p>
+      Because you are so loved — even if you don’t feel it from the people around you,<br>
+      rest assured that there is a girl who insanely loves you from across the globe.<br><br>
+      Say the word and I’ll bomb anyone who comes your way.<br>
+      – your computer genius 💻❤️
+    </p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script>
+    const solution = "LOVED";
+    let currentRow = 0, currentCol = 0, maxRows = 6;
+    let guesses = Array.from({ length: 6 }, () => Array(5).fill(""));
+
+    let board = document.getElementById("board");
+    let keyboard = document.getElementById("keyboard");
+
+    for (let r = 0; r < 6; r++) {
+      let row = document.createElement("div");
+      row.className = "row";
+      for (let c = 0; c < 5; c++) {
+        let tile = document.createElement("div");
+        tile.className = "tile";
+        tile.id = `tile-${r}-${c}`;
+        row.appendChild(tile);
+      }
+      board.appendChild(row);
+    }
+
+    const keys = [..."QWERTYUIOP", ..."ASDFGHJKL", ..."ZXCVBNM"];
+    keys.forEach(k => {
+      let btn = document.createElement("button");
+      btn.textContent = k;
+      btn.className = "key";
+      btn.onclick = () => handleKey(k);
+      keyboard.appendChild(btn);
+    });
+    ["Enter", "Del"].forEach(k => {
+      let btn = document.createElement("button");
+      btn.textContent = k;
+      btn.className = "key";
+      btn.onclick = () => handleKey(k);
+      keyboard.appendChild(btn);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      let key = e.key.toUpperCase();
+      if (key === "BACKSPACE") key = "Del";
+      if (key === "ENTER") key = "Enter";
+      if (/^[A-Z]$/.test(key) || key === "Enter" || key === "Del") handleKey(key);
+    });
+
+    function handleKey(key) {
+      if (currentRow >= maxRows) return;
+
+      if (key === "Del") {
+        if (currentCol > 0) {
+          currentCol--;
+          guesses[currentRow][currentCol] = "";
+          updateTile(currentRow, currentCol);
+        }
+      } else if (key === "Enter") {
+        if (currentCol === 5) {
+          let guess = guesses[currentRow].join("").toLowerCase();
+          // Accept all guesses
+          reveal(currentRow);
+          if (guess.toUpperCase() === solution) {
+            win();
+            return;
+          }
+          currentRow++;
+          currentCol = 0;
+        }
+      } else {
+        if (currentCol < 5) {
+          guesses[currentRow][currentCol] = key;
+          updateTile(currentRow, currentCol);
+          currentCol++;
+        }
+      }
+    }
+
+    function updateTile(row, col) {
+      let tile = document.getElementById(`tile-${row}-${col}`);
+      tile.textContent = guesses[row][col];
+    }
+
+    function reveal(row) {
+      let guess = guesses[row].join("");
+      let solutionArray = solution.split("");
+      let guessArray = guess.toUpperCase().split("");
+
+      let colors = Array(5).fill("absent");
+
+      for (let i = 0; i < 5; i++) {
+        if (guessArray[i] === solutionArray[i]) {
+          colors[i] = "correct";
+          solutionArray[i] = null;
+        }
+      }
+
+      for (let i = 0; i < 5; i++) {
+        if (colors[i] !== "correct" && solutionArray.includes(guessArray[i])) {
+          colors[i] = "present";
+          solutionArray[solutionArray.indexOf(guessArray[i])] = null;
+        }
+      }
+
+      for (let i = 0; i < 5; i++) {
+        let tile = document.getElementById(`tile-${row}-${i}`);
+        tile.classList.add(colors[i]);
+      }
+    }
+
+    function win() {
+      let duration = 2 * 1000;
+      let end = Date.now() + duration;
+
+      (function frame() {
+        confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
+        confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      })();
+
+      setTimeout(() => {
+        document.getElementById("board").style.display = "none";
+        document.getElementById("keyboard").style.display = "none";
+        document.querySelector("h1").style.display = "none";
+        document.getElementById("instructions").style.display = "none";
+        document.getElementById("final-screen").style.display = "block";
+      }, 2000);
+    }
+  </script>
+</body>
+</html>
